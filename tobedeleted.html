@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fun Hobbies Page</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            display: flex;
+            flex-direction: row;
+            min-height: 100vh;
+            background: #1a1a2e;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        .menu-bar {
+            background-color: #0f3460;
+            padding: 20px;
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            gap: 15px;
+        }
+        .menu-item {
+            padding: 10px;
+            background-color: #16213e;
+            border-radius: 10px;
+            text-align: center;
+            color: #ffffff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .menu-item:hover {
+            box-shadow: 0 0 10px #4ecca3;
+            background-color: #1a1a2e;
+        }
+        .content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 3rem;
+            color: #ff6b6b;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+        .game-container {
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .game.active {
+            display: flex;
+        }
+        canvas {
+            border: 2px solid #0f3460;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .leaderboard {
+            background-color: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            max-width: 300px;
+            text-align: center;
+        }
+        .leaderboard h2 {
+            color: #4ecca3;
+            text-shadow: 0 0 10px #4ecca3;
+        }
+        .leaderboard ol {
+            list-style-type: none;
+            padding: 0;
+        }
+        .leaderboard li {
+            margin: 10px 0;
+            font-size: 1.2em;
+        }
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            .menu-bar {
+                width: 100px;
+            }
+            .menu-item {
+                padding: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="menu-bar">
+        <div class="menu-item" onclick="selectGame('snakeGame')">🐍 Snake</div>
+        <div class="menu-item" onclick="selectGame('tetrisGame')">🧱 Tetris</div>
+        <div class="menu-item" onclick="selectGame('chessGame')">♟️ Chess</div>
+    </div>
+
+    <div class="content">
+        <h1 id="gameTitle">Welcome to the Fun Zone!</h1>
+
+        <div class="game-container" id="snakeGame">
+            <canvas id="snakeCanvas" width="400" height="400"></canvas>
+            <button onclick="startSnake()">Start Snake</button>
+        </div>
+
+        <div class="game-container" id="tetrisGame">
+            <canvas id="tetrisCanvas" width="240" height="400"></canvas>
+            <button onclick="startTetris()">Start Tetris</button>
+        </div>
+
+        <div class="game-container" id="chessGame">
+            <canvas id="chessCanvas" width="400" height="400"></canvas>
+            <button onclick="startChess()">Start Chess</button>
+        </div>
+
+        <div class="leaderboard" id="leaderboard">
+            <h2>Leaderboard</h2>
+            <ol id="leaderboardList"></ol>
+        </div>
+    </div>
+
+    <script>
+        let currentGame = null;
+
+        function selectGame(gameId) {
+            if (currentGame) {
+                document.getElementById(currentGame).classList.remove('active');
+            }
+            currentGame = gameId;
+            document.getElementById(gameId).classList.add('active');
+
+            const gameTitles = {
+                'snakeGame': 'Snake Game',
+                'tetrisGame': 'Tetris Game',
+                'chessGame': 'Chess Game'
+            };
+            document.getElementById('gameTitle').innerText = gameTitles[gameId];
+            displayLeaderboard();
+        }
+
+        // Leaderboard functions
+        let leaderboard = {
+            snake: [],
+            tetris: [],
+            chess: []
+        };
+
+        function updateLeaderboard(game, score) {
+            leaderboard[game].push(score);
+            leaderboard[game].sort((a, b) => b - a);
+            leaderboard[game] = leaderboard[game].slice(0, 3);
+            displayLeaderboard();
+        }
+
+        function displayLeaderboard() {
+            const leaderboardList = document.getElementById('leaderboardList');
+            leaderboardList.innerHTML = '';
+
+            if (leaderboard[currentGame]) {
+                leaderboard[currentGame].forEach((score, index) => {
+                    const li = document.createElement('li');
+                    li.textContent = `#${index + 1} - ${score}`;
+                    leaderboardList.appendChild(li);
+                });
+            }
+        }
+
+        // Snake Game
+        let snake, food, dx, dy, score, gameLoopSnake;
+        const snakeCanvas = document.getElementById('snakeCanvas');
+        const snakeCtx = snakeCanvas.getContext('2d');
+
+        function startSnake() {
+            snake = [{x: 200, y: 200}];
+            food = {x: Math.floor(Math.random() * 40) * 10, y: Math.floor(Math.random() * 40) * 10};
+            dx = 10;
+            dy = 0;
+            score = 0;
+            if (gameLoopSnake) clearInterval(gameLoopSnake);
+            gameLoopSnake = setInterval(updateSnake, 100);
+            document.addEventListener('keydown', changeDirection);
+        }
+
+        function updateSnake() {
+            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            snake.unshift(head);
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                food = {x: Math.floor(Math.random() * 40) * 10, y: Math.floor(Math.random() * 40) * 10};
+            } else {
+                snake.pop();
+            }
+            if (head.x < 0 || head.x >= snakeCanvas.width || head.y < 0 || head.y >= snakeCanvas.height) {
+                clearInterval(gameLoopSnake);
+                updateLeaderboard('snake', score);
+                alert('Game Over! Score: ' + score);
+            }
+            drawSnake();
+        }
+
+        function drawSnake() {
+            snakeCtx.clearRect(0, 0, snakeCanvas.width, snakeCanvas.height);
+            snakeCtx.fillStyle = '#4ecdc4';
+            snake.forEach(segment => {
+                snakeCtx.fillRect(segment.x, segment.y, 10, 10);
+            });
+            snakeCtx.fillStyle = '#ff6b6b';
+            snakeCtx.fillRect(food.x, food.y, 10, 10);
+        }
+
+        function changeDirection(event) {
+            const LEFT_KEY = 37;
+            const RIGHT_KEY = 39;
+            const UP_KEY = 38;
+            const DOWN_KEY = 40;
+            const keyPressed = event.keyCode;
+            if (keyPressed === LEFT_KEY && dx !== 10) {
+                dx = -10;
+                dy = 0;
+            }
+            if (keyPressed === UP_KEY && dy !== 10) {
+                dx = 0;
+                dy = -10;
+            }
+            if (keyPressed === RIGHT_KEY && dx !== -10) {
+                dx = 10;
+                dy = 0;
+            }
+            if (keyPressed === DOWN_KEY && dy !== -10) {
+                dx = 0;
+                dy = 10;
+            }
+        }
+
+        // Tetris Game
+        const tetrisCanvas = document.getElementById('tetrisCanvas');
+        const tetrisCtx = tetrisCanvas.getContext('2d');
+        const BLOCK_SIZE = 20;
+        const BOARD_WIDTH = 12;
+        const BOARD_HEIGHT = 20;
+        let board, currentPiece, gameLoopTetris, tetrisScore;
+
+        function startTetris() {
+            board = Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill(0));
+            currentPiece = newPiece();
+            tetrisScore = 0;
+            if (gameLoopTetris) clearInterval(gameLoopTetris);
+            gameLoopTetris = setInterval(updateTetris, 500);
+            document.addEventListener('keydown', moveTetrisPiece);
+            drawTetris();
+        }
+
+        function newPiece() {
+            const shapes = [
+                [[1, 1, 1, 1]],
+                [[1, 1], [1, 1]],
+                [[1, 1, 1], [0, 1, 0]],
+                [[1, 1, 1], [1, 0, 0]],
+                [[1, 1, 1], [0, 0, 1]],
+                [[1, 1, 0], [0, 1, 1]],
+                [[0, 1, 1], [1, 1, 0]]
+            ];
+            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9d56e', '#8a2be2', '#ff8c00', '#3cb371'];
+            const shapeIndex = Math.floor(Math.random() * shapes.length);
+            return {
+                shape: shapes[shapeIndex],
+                color: colors[shapeIndex],
+                x: Math.floor(BOARD_WIDTH / 2) - Math.floor(shapes[shapeIndex][0].length / 2),
+                y: 0
+            };
+        }
+
+        function updateTetris() {
+            if (canMove(currentPiece.x, currentPiece.y + 1)) {
+                currentPiece.y++;
+            } else {
+                placePiece();
+                clearLines();
+                currentPiece = newPiece();
+                if (!canMove(currentPiece.x, currentPiece.y)) {
+                    clearInterval(gameLoopTetris);
+                    updateLeaderboard('tetris', tetrisScore);
+                    alert('Game Over! Score: ' + tetrisScore);
+                }
+            }
+            drawTetris();
+        }
+
+        function canMove(x, y) {
+            for (let row = 0; row < currentPiece.shape.length; row++) {
+                for (let col = 0; col < currentPiece.shape[row].length; col++) {
+                    if (currentPiece.shape[row][col] &&
+                        (board[y + row] === undefined || board[y + row][x + col] === undefined ||
+                        board[y + row][x + col] || x + col < 0 || x + col >= BOARD_WIDTH || y + row >= BOARD_HEIGHT)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function placePiece() {
+            currentPiece.shape.forEach((row, rowIndex) => {
+                row.forEach((value, colIndex) => {
+                    if (value) {
+                        board[currentPiece.y + rowIndex][currentPiece.x + colIndex] = currentPiece.color;
+                    }
+                });
+            });
+        }
+
+        function clearLines() {
+            for (let row = BOARD_HEIGHT - 1; row >= 0; row--) {
+                if (board[row].every(cell => cell !== 0)) {
+                    board.splice(row, 1);
+                    board.unshift(Array(BOARD_WIDTH).fill(0));
+                    tetrisScore += 100;
+                }
+            }
+        }
+
+        function drawTetris() {
+            tetrisCtx.clearRect(0, 0, tetrisCanvas.width, tetrisCanvas.height);
+            drawBoard();
+            drawPiece();
+        }
+
+        function drawBoard() {
+            board.forEach((row, rowIndex) => {
+                row.forEach((cell, colIndex) => {
+                    if (cell) {
+                        tetrisCtx.fillStyle = cell;
+                        tetrisCtx.fillRect(colIndex * BLOCK_SIZE, rowIndex * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                });
+            });
+        }
+
+        function drawPiece() {
+            tetrisCtx.fillStyle = currentPiece.color;
+            currentPiece.shape.forEach((row, rowIndex) => {
+                row.forEach((value, colIndex) => {
+                    if (value) {
+                        tetrisCtx.fillRect((currentPiece.x + colIndex) * BLOCK_SIZE, (currentPiece.y + rowIndex) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                });
+            });
+        }
+
+        function moveTetrisPiece(event) {
+            const LEFT_KEY = 37;
+            const RIGHT_KEY = 39;
+            const DOWN_KEY = 40;
+            const UP_KEY = 38;
+            if (event.keyCode === LEFT_KEY && canMove(currentPiece.x - 1, currentPiece.y)) {
+                currentPiece.x--;
+            }
+            if (event.keyCode === RIGHT_KEY && canMove(currentPiece.x + 1, currentPiece.y)) {
+                currentPiece.x++;
+            }
+            if (event.keyCode === DOWN_KEY && canMove(currentPiece.x, currentPiece.y + 1)) {
+                currentPiece.y++;
+            }
+            if (event.keyCode === UP_KEY) {
+                rotatePiece();
+            }
+            drawTetris();
+        }
+
+        function rotatePiece() {
+            const rotatedShape = currentPiece.shape[0].map((_, colIndex) =>
+                currentPiece.shape.map(row => row[colIndex]).reverse()
+            );
+            if (canMove(currentPiece.x, currentPiece.y, rotatedShape)) {
+                currentPiece.shape = rotatedShape;
+            }
+        }
+
+        // Chess Game
+        const chessCanvas = document.getElementById('chessCanvas');
+        const chessCtx = chessCanvas.getContext('2d');
+        let chessBoard, selectedPiece;
+
+        function startChess() {
+            chessBoard = [
+                ['r','n','b','q','k','b','n','r'],
+                ['p','p','p','p','p','p','p','p'],
+                [' ',' ',' ',' ',' ',' ',' ',' '],
+                [' ',' ',' ',' ',' ',' ',' ',' '],
+                [' ',' ',' ',' ',' ',' ',' ',' '],
+                [' ',' ',' ',' ',' ',' ',' ',' '],
+                ['P','P','P','P','P','P','P','P'],
+                ['R','N','B','Q','K','B','N','R']
+            ];
+            selectedPiece = null;
+            drawChessBoard();
+            chessCanvas.addEventListener('click', handleChessClick);
+        }
+
+        function drawChessBoard() {
+            const squareSize = chessCanvas.width / 8;
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    chessCtx.fillStyle = (row + col) % 2 === 0 ? '#f0d9b5' : '#b58863';
+                    chessCtx.fillRect(col * squareSize, row * squareSize, squareSize, squareSize);
+                    if (chessBoard[row][col] !== ' ') {
+                        chessCtx.fillStyle = chessBoard[row][col] === chessBoard[row][col].toUpperCase() ? '#ffffff' : '#000000';
+                        chessCtx.font = `${squareSize * 0.7}px Arial`;
+                        chessCtx.textAlign = 'center';
+                        chessCtx.textBaseline = 'middle';
+                        chessCtx.fillText(getPieceSymbol(chessBoard[row][col]), (col + 0.5) * squareSize, (row + 0.5) * squareSize);
+                    }
+                }
+            }
+        }
+
+        function getPieceSymbol(piece) {
+            const symbols = {
+                'k': '♔', 'q': '♕', 'r': '♖', 'b': '♗', 'n': '♘', 'p': '♙',
+                'K': '♚', 'Q': '♛', 'R': '♜', 'B': '♝', 'N': '♞', 'P': '♟'
+            };
+            return symbols[piece] || piece;
+        }
+
+        function handleChessClick(event) {
+            const rect = chessCanvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const col = Math.floor(x / (chessCanvas.width / 8));
+            const row = Math.floor(y / (chessCanvas.height / 8));
+            if (selectedPiece) {
+                if (isValidMove(selectedPiece, row, col)) {
+                    movePiece(selectedPiece, row, col);
+                    selectedPiece = null;
+                } else {
+                    selectedPiece = null;
+                }
+            } else if (chessBoard[row][col] !== ' ') {
+                selectedPiece = { row, col };
+                highlightSquare(row, col);
+            }
+            drawChessBoard();
+        }
+
+        function isValidMove(from, toRow, toCol) {
+            // Simplified version of move validation, replace with actual chess logic
+            return true;
+        }
+
+        function movePiece(from, toRow, toCol) {
+            chessBoard[toRow][toCol] = chessBoard[from.row][from.col];
+            chessBoard[from.row][from.col] = ' ';
+            // Rotate the board after every move
+            chessBoard = chessBoard.map((row, i) => row.reverse()).reverse();
+        }
+
+        function highlightSquare(row, col) {
+            const squareSize = chessCanvas.width / 8;
+            chessCtx.strokeStyle = '#ff0000';
+            chessCtx.lineWidth = 4;
+            chessCtx.strokeRect(col * squareSize, row * squareSize, squareSize, squareSize);
+        }
+    </script>
+</body>
+</html>
